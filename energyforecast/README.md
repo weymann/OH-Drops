@@ -15,8 +15,8 @@ Check in beforehand if your [price zone](https://www.energyforecast.de/api-docs/
 | fixCost           | decimal   | Fix costs in ct/kWh which will be added on top of the forecast price, e.g. 15,3   | 0         | no       |
 | vat               | decimal   | VAT in percent which will be added on top of the forecast price, e.g. 19,0        | 0         | no       |
 | resolution        | text      | Resolution in ISO 8601 Duration format                                            | PT15M     | no       |
-| refreshInterval   | decimal   | Refresh interval in minutes. Check with service throttling                        | 180       | no       |
-| errorLimit        | decimal   | Limit error percentage values for better visualization                            | 0         | no       |
+| refreshInterval   | integer   | Refresh interval in minutes. Check with service throttling                        | 180       | no       |
+| errorLimit        | integer   | Limit error percentage values for better visualization                            | 0         | no       |
 
 `token` needs to be generated after registration at [Energy Forecast Provider](https://www.energyforecast.de/api_keys).
 
