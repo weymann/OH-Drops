@@ -12,8 +12,7 @@ Check in beforehand if your [price zone](https://www.energyforecast.de/api-docs/
 |-------------------|-----------|-----------------------------------------------------------------------------------|-----------|----------|
 | token             | text      | Token for energy forecast service to provide forecast data                        | N/A       | yes      |
 | zone              | text      | Bidding zone for price queries                                                    | N/A       | yes      |
-| fixCost           | decimal   | Fix costs in ct/kWh which will be added on top of the forecast price, e.g. 15,3   | 0         | no       |
-| vat               | decimal   | VAT in percent which will be added on top of the forecast price, e.g. 19,0        | 0         | no       |
+| fixCost           | decimal   | Net fix costs in ct/kWh added on top of the forecast price, e.g. 15,3             | 0         | no       |
 | resolution        | text      | Resolution in ISO 8601 Duration format                                            | PT15M     | no       |
 | refreshInterval   | integer   | Refresh interval in minutes. Check with service throttling                        | 180       | no       |
 | errorLimit        | integer   | Limit error percentage values for better visualization                            | 0         | no       |
@@ -23,6 +22,12 @@ Check in beforehand if your [price zone](https://www.energyforecast.de/api-docs/
 `resolution` time resolution given as options. `PT15M` an `PT60M` are supported.
 `refreshInterval` given in minutes. Align this value with your [booked plan](https://www.energyforecast.de/pricing).
 `errorLimit` to avoid extraordinary error percentage values in `metric` group. Value `0` is no limit.
+
+#### Calculate Gross Price
+
+`fixCost` shall be net costs which will be added to the net energy price.
+If you've already one or more items holding fix cost values consider to [calculate the future prices in a rule](https://www.openhab.org/addons/bindings/energidataservice/#time-series).
+Use [VAT Transformation Service](https://www.openhab.org/addons/transformations/vat/) to calculate the gross price. 
 
 ## Channels
 
@@ -46,7 +51,7 @@ If you don't have a database installed [InMemory persistence](https://www.openha
 ### Group `metric`
 
 Metrics for AI price forecasts.
-Calculation is done on net prices without configured `fixCost` and `VAT` from configuration.
+Calculation is done on net prices without configured `fixCost` and any VAT applied via transformations/rules.
 See [Future Forecasting](https://www.future-forecasting.de/en/wiki/fehlermass/) for further description.
 
 **Note: After first installation these values will stay empty up to 1,5 days!**
@@ -68,14 +73,14 @@ If market price is 0.001 and forecast was 0.006 the percentage error is *high* w
 For visualization you can limit these values with configuration `errorLimit`.
 
 `mean-abs` shows the average of all absolute `forecast-error` calculations as one value.
-`mean-percent` shows the average of all absolute `percent-error` calculations as one value.
+`mean-abs-percent` shows the average of all absolute `percent-error` calculations as one value.
   
 ## Full Example
 
 ### `demo.things`
 
 ```java
-Thing energyforecast:price-forecast:UID "Energy Forecast" [zone="YOUR_BIDDING_ZONE", token="YOUR_TOKEN", fixCost=12.3, vat=19.0, resolution="PT15M", refreshInterval=180, errorLimit=0] 
+Thing energyforecast:price-forecast:UID "Energy Forecast" [zone="YOUR_BIDDING_ZONE", token="YOUR_TOKEN", fixCost=12.3, resolution="PT15M", refreshInterval=180, errorLimit=0] 
 ```
 
 ### `demo.items`
@@ -88,5 +93,5 @@ Number:EnergyPrice      Energy_Forecast_Forecast                "Forecast"      
 Number:EnergyPrice      Energy_Forecast_Forecast_Error          "Forecast Error"            {channel="energyforecast:price-forecast:UID:metric#forecast-error"}
 Number:Dimensionless    Energy_Forecast_Percent_Error           "Percent Error"             {channel="energyforecast:price-forecast:UID:metric#percent-error"}
 Number:EnergyPrice      Energy_Forecast_Mean_Absolute           "Mean Absolute"             {channel="energyforecast:price-forecast:UID:metric#mean-abs"}
-Number:Dimensionless    Energy_Forecast_Mean_Absolute_Percent   "Mean Absolute Percent"     {channel="energyforecast:price-forecastt:UID:metric#mean-abs-percent"}
+Number:Dimensionless    Energy_Forecast_Mean_Absolute_Percent   "Mean Absolute Percent"     {channel="energyforecast:price-forecast:UID:metric#mean-abs-percent"}
 ```
