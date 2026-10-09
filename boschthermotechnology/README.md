@@ -115,9 +115,9 @@ Use the group id together with the channel id (`<group>#<channel>`) when linking
 | `system` | `outdoor-temperature` | Number:Temperature | R | Outdoor temperature reported by the gateway. |
 | `system` | `away-mode-enabled` | Switch | RW | Enables or disables away mode for the whole gateway. |
 | `system` | `silent-mode-enabled` | Switch | RW | Enables or disables silent (noise-reduced) mode for the whole gateway. |
-| `system` | `season-optimizer-mode` | String | RW | Raw season optimizer mode. Exact value enumeration not yet confirmed. |
-| `system` | `holiday-mode-active` | String | R | Raw summary of the currently active holiday mode. |
-| `notifications` | `active` | String | R | Raw active notifications/faults as a JSON string. Exact response shape not yet confirmed. |
+| `system` | `season-optimizer-mode` | Number | RW | Season optimizer mode: 0 = Off, 1 = Automatic, 2 = Forced heating (wire values `off`/`automatic`/`forcedHeat`, confirmed live). |
+| `system` | `holiday-mode-active` | Switch | R | ON while at least one holiday mode is active (list shape assumed, not yet confirmed live). |
+| `notifications` | `active` | Number | R | Number of active notifications/faults (list shape assumed, not yet confirmed live). |
 
 In addition to the channels above, the `gateway` Thing exposes `serialId`, `firmwareVersion`, and `hardwareVersion` as read-only Thing properties (visible in the Properties panel).
 These are refreshed once a day on their own schedule, independent of `refreshInterval` and the regular channel poll, since this metadata rarely changes.
@@ -130,12 +130,16 @@ The circuit id in the group name comes from the gateway itself, not from list po
 | Channel Group | Channel ID | Type | Read/Write | Description |
 |---------------|-----------|------|------------|--------------|
 | `heating-circuit-<circuitId>` | `manual-room-setpoint` | Number:Temperature | RW | Manual room setpoint of this heating circuit (5–30 °C). |
+| `heating-circuit-<circuitId>` | `boost-mode` | Switch | RW | Heating boost of this heating circuit (the vendor app's "Boost" function); wire values `on`/`off`. |
+| `heating-circuit-<circuitId>` | `boost-duration` | Number | RW | Boost duration, raw value in the unit reported by the gateway (not yet confirmed live). |
+| `heating-circuit-<circuitId>` | `boost-temperature` | Number:Temperature | RW | Room temperature to be reached during the boost (0.5 °C steps). |
+| `heating-circuit-<circuitId>` | `boost-remaining-time` | Number | R | Remaining time of the running boost, raw value in the unit reported by the gateway. |
 | `dhw-circuit-<circuitId>` | `charge-duration` | Number:Time | RW | Domestic hot water single-charge duration of this DHW circuit (15–2880 min). |
 | `dhw-circuit-<circuitId>` | `single-charge-setpoint` | Number:Temperature | RW | Domestic hot water single-charge temperature setpoint of this DHW circuit (50–70 °C). |
-| `dhw-circuit-<circuitId>` | `operation-mode` | Number | RW | Domestic hot water operation mode of this DHW circuit: `0`=Off, `1`=Eco+, `2`=Eco, `3`=Comfort, `4`=Auto. |
+| `dhw-circuit-<circuitId>` | `operation-mode` | Number | RW | Domestic hot water operation mode of this DHW circuit: `0`=Off, `1`=Low, `2`=High, `3`=Own program, `4`=Eco (wire values `Off`/`low`/`high`/`ownprogram`/`eco`, confirmed live). |
 | `dhw-circuit-<circuitId>` | `charge` | Switch | RW | Starts or stops a domestic hot water instant charge of this DHW circuit. |
 | `dhw-circuit-<circuitId>` | `reduce-temp-on-alarm` | Switch | RW | Reduces the domestic hot water temperature while an alarm is active. |
-| `heat-source-1` | `ch-status` | String | R | Raw central heating status of the heat source. Exact value shape not yet confirmed. |
+| `heat-source-1` | `ch-status` | Switch | R | ON while central heating is active, OFF if the heat source reports `off`. |
 | `heat-source-1` | `actual-supply-temperature` | Number:Temperature | R | Actual supply (flow) temperature of the heat source. |
 | `heat-source-1` | `return-temperature` | Number:Temperature | R | Return temperature of the heat source. |
 | `heat-source-1` | `number-of-starts` | Number | R | Number of times the heat source has started. |
@@ -167,7 +171,7 @@ Cascade installations with more than one heat source are not yet supported — `
 
 | Channel ID | Type | Read/Write | Description |
 |-----------|------|------------|--------------|
-| `operation-mode` | String | RW | Raw ventilation operation mode. Exact value enumeration not yet confirmed. |
+| `operation-mode` | Number | RW | Ventilation mode: 0 = Off, 1 = Auto, 2 = Demand, 3 = Minimum, 4 = Reduced, 5 = Nominal, 6 = Maximum, 7 = Party, 8 = Sleep, 9 = Intensive, 10 = Bypass, 11 = Fireplace, 12 = Free Function. |
 | `filter-remaining-time` | Number:Time | R | Remaining filter run time before replacement is due. |
 
 ### `zone-thermostat` Channels
@@ -190,8 +194,8 @@ Cascade installations with more than one heat source are not yet supported — `
 
 | Channel ID | Type | Read/Write | Description |
 |-----------|------|------------|--------------|
-| `operation-mode` | String | RW | Raw RAC operation mode. Exact value enumeration not yet confirmed. |
-| `fan-speed` | String | RW | Raw RAC fan speed. Exact value enumeration not yet confirmed. |
+| `operation-mode` | Number | RW | 0 = Auto, 1 = Heat, 2 = Cool, 3 = Dry, 4 = Fan, 5 = Off (values not yet confirmed for PointT). |
+| `fan-speed` | Number | RW | 0 = Auto, 1 = Quiet, 2 = Low, 3 = Medium, 4 = High, 5 = Turbo (values not yet confirmed for PointT). |
 | `temperature-setpoint` | Number:Temperature | RW | RAC temperature setpoint. |
 
 ### `water-softener` Channels
@@ -225,7 +229,7 @@ Number:Time          DhwChargeDuration       "DHW Charge Duration [%d %unit%]"  
 Number:Temperature   DhwSingleChargeSetpoint "DHW Single Charge Setpoint [%.1f %unit%]" { channel="boschthermotechnology:heatpump:myaccount:mygateway:myheatpump:dhw-circuit-dhw1#single-charge-setpoint" }
 Number                DhwOperationMode        "DHW Operation Mode [%d]"                 { channel="boschthermotechnology:heatpump:myaccount:mygateway:myheatpump:dhw-circuit-dhw1#operation-mode" }
 Switch                DhwCharge               "DHW Instant Charge"                      { channel="boschthermotechnology:heatpump:myaccount:mygateway:myheatpump:dhw-circuit-dhw1#charge" }
-String                 HeatSourceChStatus      "Heat Source Status [%s]"                 { channel="boschthermotechnology:heatpump:myaccount:mygateway:myheatpump:heat-source-1#ch-status" }
+Switch                 HeatSourceChStatus      "Heat Source Active"                      { channel="boschthermotechnology:heatpump:myaccount:mygateway:myheatpump:heat-source-1#ch-status" }
 Number:Temperature    HeatSourceSupplyTemp    "Heat Source Supply Temp [%.1f %unit%]"    { channel="boschthermotechnology:heatpump:myaccount:mygateway:myheatpump:heat-source-1#actual-supply-temperature" }
 
 Switch                PvEnabled               "PV Enabled"                              { channel="boschthermotechnology:pv:myaccount:mygateway:mypv:photovoltaic#enabled" }
@@ -254,7 +258,7 @@ sitemap boschthermotechnology label="Bosch Thermotechnology" {
         Setpoint item=ManualRoomSetpoint minValue=5 maxValue=30 step=0.5
         Setpoint item=DhwSingleChargeSetpoint minValue=50 maxValue=70 step=0.5
         Setpoint item=DhwChargeDuration minValue=15 maxValue=2880 step=15
-        Selection item=DhwOperationMode mappings=[0="Off", 1="Eco+", 2="Eco", 3="Comfort", 4="Auto"]
+        Selection item=DhwOperationMode mappings=[0="Off", 1="Low", 2="High", 3="Own program", 4="Eco"]
         Switch item=DhwCharge
         Text item=HeatSourceChStatus
         Text item=HeatSourceSupplyTemp
