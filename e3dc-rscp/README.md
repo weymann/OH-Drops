@@ -159,6 +159,10 @@ Power values are reported in `W`, energy counters in `kWh`.
 | wallbox-discharge-until   | Number:Dimensionless | State of charge down to which the battery may discharge into the car |
 | wallbox-disable-at-mix-mode | Switch             | No battery charging while the wallbox charges in mix mode |
 
+The eight channels `charge-limit-*` and `discharge-limit-*` are advanced and read only.
+They report the limits the device combines: `used` is the limit that applies at the moment, `battery` and `dcdc` are limits of the hardware and `user` is the one set by the user.
+For everyday use `max-charge-power`, `max-discharge-power` and the `remaining-*` channels are enough.
+
 ### Channel Group `grid`
 
 | Channel       | Type   | Description                     |
@@ -236,6 +240,21 @@ For every index that answers with a value the binding creates channels at runtim
 | powersave                 | Switch       | Power saving mode is active                      |
 | derate-at-percent         | Number:Dimensionless | Share of the installed peak power at which the feed in is reduced |
 | derate-at-power           | Number:Power | Power at which the feed in is reduced            |
+| has-messages              | Switch       | The energy manager holds at least one message    |
+| messages                  | String       | Messages of the energy manager as a JSON array   |
+
+The energy manager keeps messages such as a schedule that is being executed or a lost connection to the smart meter gateway.
+`has-messages` is `ON` while the list is not empty, `messages` holds the list as JSON.
+A field the device does not report is left out, without messages the array is empty:
+
+```json
+[{"type":1,"source":"EMS","code":32803,"message":"A schedule is being executed! (AI360)"}]
+```
+
+- `type` is the kind of message as the device numbers it. The device reports both a running schedule and a lost connection with type 1, so the type does not tell an error from a hint.
+- `timestamp` is added in UTC when the device names the moment.
+- A poll that carries no answer to the request leaves both channels as they were.
+- The reading of the messages has not been checked on a device yet.
 
 ### Channel Group `battery-control`
 
