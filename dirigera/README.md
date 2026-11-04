@@ -4,7 +4,7 @@ Binding supporting the DIRIGERA Gateway from IKEA.
 
 ## Supported Things
 
-The DIRIGERA `bridge` is providing the connection to all devices and scenes.  
+The DIRIGERA `bridge` is providing the connection to all devices and scenes.
 
 Refer to below sections which devices are supported and are covered by `things` connected to the DIRIGERA bridge.
 
@@ -19,6 +19,7 @@ Refer to below sections which devices are supported and are covered by `things` 
 | `dimmable-light`      | Light with brightness support                              | [Lights](#dimmable-lights)                | TRÅDFRI                                   |
 | `temperature-light`   | Light with color temperature support                       | [Lights](#temperature-lights)             | TRÅDFRI, FLOALT                           |
 | `color-light`         | Light with color support                                   | [Lights](#color-lights)                   | TRÅDFRI, ORMANÅS                          |
+| `light-set`           | Group of lights controlled as one logical unit             | [Lights](#light-set)                      | Set of lights which are handled together  |
 | `light-controller`    | Controller to handle light attributes                      | [Controller](#light-controller)           | TRÅDFRI, RODRET,STYRBAAR                  |
 | `motion-sensor`       | Sensor detecting motion events                             | [Sensors](#motion-sensor)                 | TRÅDFRI                                   |
 | `motion-light-sensor` | Sensor detecting motion events and measures light level    | [Sensors](#motion-light-sensor)           | VALLHORN                                  |
@@ -41,9 +42,9 @@ Each thing depends on the underlying hardware and channels are created based on 
 - `ota` channels for devices which can receive updates
 - `battery` channels for battery powered devices
 - `link` channels if device can be linked to a controller or sensor
-- `startup` channel if device _power on_ behavior can be configured 
+- `startup` channel if device _power on_ behavior can be configured
 
-Examples are MYGGSPRAY as `occupancy-sensor` which also provides a `light-sensor` or TIMMERFLOTTE as `environment-sensor` delivers temperature and humidity while ALPSTUGA also measures CO2 and particulate matter. 
+Examples are MYGGSPRAY as `occupancy-sensor` which also provides a `light-sensor` or TIMMERFLOTTE as `environment-sensor` delivers temperature and humidity while ALPSTUGA also measures CO2 and particulate matter.
 
 | ThingTypeUID          | Description                                               | Section                                   | Products                                  |
 |-----------------------|-----------------------------------------------------------|-------------------------------------------|-------------------------------------------|
@@ -55,7 +56,7 @@ Examples are MYGGSPRAY as `occupancy-sensor` which also provides a `light-sensor
 | `two-button-switch`   | Controller with 2 programmable buttons                    | [Controller](#two-button-switch)          | BILRESA dual button                       |
 | `three-button-switch` | Controller with 3 programmable buttons                    | [Controller](#three-button-switch)        | BILRESA scroll wheel                      |
 | `matter-light`        | LED light (based on Matter standard)                      | [Lights](#matter-light)                   | KAJPLATS series                           |
-| `matter-outlet`       | Power plug with electricity measurements                  | [Plugs](#matter-outlet   )                | GRILLPLATS, TOFSMYGGA                     |
+| `matter-outlet`       | Power plug with electricity measurements                  | [Plugs](#smart-power-plug-matter)         | GRILLPLATS, TOFSMYGGA                     |
 
 ## Discovery
 
@@ -295,7 +296,6 @@ Configuration contains
 | `colorTemperatureMin` | integer | Overwrite minimum color temperature from light device in kelvin | N/A     | no       |
 | `colorTemperatureMax` | integer | Overwrite maximum color temperature from light device in kelvin | N/A     | no       |
 
-
 `fadeTime` adjust fading time according to your device.
 Current behavior shows commands are acknowledged while device is fading  but not executed correctly.
 So they need to be executed one after another.
@@ -377,6 +377,79 @@ Channel `color` can receive
 - numbers from 0 to 100 as brightness in percent where 0 will switch the light OFF, any other > 0 switches light ON
 - triple values for hue, saturation, brightness
 
+## Light Set
+
+A Light Set is a group of individual lights and outlets that the IKEA Home smart app manages under a single logical device.
+The `light-set` thing maps to this group and provides the same channels as [Color Lights](#color-lights).
+
+| Channel                   | Type                  | Read/Write | Description                                          | Advanced |
+|---------------------------|-----------------------|------------|------------------------------------------------------|----------|
+| `power`                   | Switch                | RW         | Power state of the light set                         |          |
+| `brightness`              | Dimmer                | RW         | Brightness of the light set in percent               |          |
+| `color-temperature`       | Dimmer                | RW         | Color temperature from cold (0 %) to warm (100 %)    |          |
+| `color-temperature-abs`   | Number:Temperature    | RW         | Color temperature in Kelvin                          |    X     |
+| `color`                   | Color                 | RW         | Color with hue, saturation and brightness            |          |
+| `startup`                 | Number                | RW         | Startup behavior after power cutoff                  |          |
+| `custom-name`             | String                | RW         | Name given in the IKEA Home smart app                |          |
+
+### Availability (ONLINE / OFFLINE)
+
+The `light-set` thing tracks reachability individually for each member bulb.
+It reports **ONLINE** as long as at least one member is reachable.
+It goes **OFFLINE** only when every member reports `isReachable=false`.
+
+### Important: Inconsistent State
+
+Because each member bulb inside a set can be controlled independently, like a physical switch, or another openHAB rule, the actual state of the individual bulbs may diverge from each other.
+The `light-set` channels reflect the state reported by whichever member sent the most recent websocket update.
+This means the channel values represent the state of one member, not a guaranteed aggregate of all members.
+
+**Sets are designed as a control surface, not a state mirror.**
+Use the `light-set` channels to issue uniform commands to the group.
+Do not rely on the channel state to accurately reflect what every individual bulb in the set is currently doing.
+If per-bulb state accuracy is required, add each bulb as its own `color-light` thing alongside the set.
+
+### Creating a Light Set
+
+A light set can be created from rules with the action `createLightSet` of the gateway Thing.
+Members are lights and outlets, including Matter lights and Matter outlets, which are attached to the same gateway.
+The new set is presented in the Inbox as `light-set` Thing.
+
+| Parameter | Type         | Description                                                                 |
+|-----------|--------------|-----------------------------------------------------------------------------|
+| `name`    | String       | Name of the light set, must not be blank                                    |
+| `icon`    | String       | Icon of the light set, `lighting_table_lamp` is used if `null` or empty     |
+| `members` | List<String> | Thing UIDs of the lights and outlets, must not be empty                     |
+
+The action returns the id of the created set.
+It returns `null` and writes a warning to the log if the set cannot be created, for example if a member is not a light or an outlet or if the gateway rejects the members.
+In this case no set remains on the gateway.
+The action waits for the answers of the gateway, so it should not be called from time-critical rules.
+
+Supported icons:
+
+- `lighting_ached_lamp`
+- `lighting_chandelier`
+- `lighting_cone_pendant`
+- `lighting_desk_lamp`
+- `lighting_electronic_circle`
+- `lighting_fan`
+- `lighting_floor_lamp`
+- `lighting_led_strip`
+- `lighting_nightstand_light`
+- `lighting_pendant_light`
+- `lighting_spot_chandelier`
+- `lighting_table_lamp`
+- `lighting_wall_lamp`
+
+Example for a rule with the DSL scripting language:
+
+```java
+val actions = getActions("dirigera", "dirigera:gateway:myhub")
+val setId = actions.createLightSet("Living room", "lighting_floor_lamp",
+    newArrayList("dirigera:color-light:myhub:lamp1", "dirigera:smart-plug:myhub:plug1"))
+```
+
 ## Power Plugs
 
 Power plugs in different variants.
@@ -416,11 +489,11 @@ Smart plug provides `energy-total` measuring energy consumption over lifetime an
 Channel `reset-date` is writable and will set the date time to the timestamp of command execution.
 Past and future timestamps are not possible and will be ignored.
 
-
-## Smart Power Plug (Matter)
+## Smart Power Plug Matter
 
 Smart plug based on Matter standard.
-Same as [Smart Power Plug](#smart-power-plug).
+Provides the power and energy measurement channels listed below.
+Additional [Smart Power Plug](#smart-power-plug) channels such as child lock or status light configuration are not supported by the Matter variant.
 
 | Channel               | Type                      | Read/Write | Description                                  |
 |-----------------------|---------------------------|------------|----------------------------------------------|
@@ -623,7 +696,7 @@ State will switch to `Undef` after countdown.
 ## Occupancy Sensor
 
 Sensor to detect presence of people.
-Currently IKEA's product portfolio provides only motion sensors without additional presence detection. 
+Currently IKEA's product portfolio provides only motion sensors without additional presence detection.
 Nevertheless they are registered as _occupancy_ which is a bit misleading.
 Maybe there will be extensions in the future.
 
@@ -643,7 +716,6 @@ Sensor measuring illuminance.
 | Channel               | Type                  | Read/Write | Description                                  |
 |-----------------------|-----------------------|------------|----------------------------------------------|
 | `illuminance`         | Number:Illuminance    | R          | Illuminance in Lux                           |
-
 
 ## Environment Sensor
 
@@ -695,8 +767,7 @@ In addition this controller provides switching between 3 groups.
 Group names are
 
 - `switch-1`, `switch-2` and `switch-3` for trigger and link channels
-- `switch` group covers general device information like `ota` and `battery` information 
-
+- `switch` group covers general device information like `ota` and `battery` information
 
 | Channel               | Type                  | Read/Write | Description                                  | Advanced  |
 |-----------------------|-----------------------|------------|----------------------------------------------|-----------|
@@ -712,7 +783,7 @@ Trigger channels providing `SINGLE_PRESS`, `DOUBLE_PRESS` and `LONG_PRESS` as tr
 Pitfalls and problems:
 
 - be careful with _Add Equipment to Model_ and item names. Ensure item name for each group is different, otherwise item is connected to all group channels.
-- before linking the controller to other devices like lights ensure the `control-mode` fits 
+- before linking the controller to other devices like lights ensure the `control-mode` fits
 - right now triggers are **not** exposed so you cannot used them to control devices outside of DIRIGERA
 
 ## Matter Light
