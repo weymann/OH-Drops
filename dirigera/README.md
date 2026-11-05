@@ -409,6 +409,15 @@ Use the `light-set` channels to issue uniform commands to the group.
 Do not rely on the channel state to accurately reflect what every individual bulb in the set is currently doing.
 If per-bulb state accuracy is required, add each bulb as its own `color-light` thing alongside the set.
 
+> **Purpose of the actions for light sets and rooms**
+>
+> The actions of the gateway Thing for light sets and rooms are setup tools.
+> They are **not intended for the regular operation of a home**, for example in rules which run every day.
+> They make the configuration of the hub reachable from outside of the IKEA Home smart app, namely via the openHAB REST API (`/rest/actions`), the openHAB MCP server or an AI assistant.
+> With them devices can be organised on the hub, so that sets and rooms are set up consistently with the IKEA Home smart app, which shows the same sets and rooms.
+> Every call changes the configuration of the hub and waits for its answer.
+> The examples with rules show how the actions are called, they are no recommendation to call them regularly from a rule.
+
 ### Creating a Light Set
 
 A light set can be created from rules with the action `createLightSet` of the gateway Thing.
@@ -418,7 +427,7 @@ The new set is presented in the Inbox as `light-set` Thing.
 | Parameter | Type         | Description                                                                 |
 |-----------|--------------|-----------------------------------------------------------------------------|
 | `name`    | String       | Name of the light set, must not be blank                                    |
-| `icon`    | String       | Icon of the light set, `lighting_table_lamp` is used if `null` or empty     |
+| `icon`    | String       | Optional icon of the light set, `lighting_table_lamp` is used if `null` or empty |
 | `members` | List<String> | Thing UIDs of the lights and outlets, must not be empty                     |
 
 The action returns the id of the created set.
@@ -448,6 +457,177 @@ Example for a rule with the DSL scripting language:
 val actions = getActions("dirigera", "dirigera:gateway:myhub")
 val setId = actions.createLightSet("Living room", "lighting_floor_lamp",
     newArrayList("dirigera:color-light:myhub:lamp1", "dirigera:smart-plug:myhub:plug1"))
+```
+
+### Listing and Deleting Light Sets
+
+The action `getLightSets` of the gateway Thing returns all light sets of the gateway as JSON array in a String.
+Each element contains `id`, `name`, `icon` and `members` with the device ids of the members.
+If a `light-set` Thing exists for the set, the element also contains `thing` with its Thing UID.
+The action returns `null` and writes a warning to the log if the gateway cannot be read.
+
+The action `deleteLightSet` of the gateway Thing deletes a light set from the gateway.
+The set is addressed either by the Thing UID of its `light-set` Thing or by the id of the set.
+The action returns `true` if the set was deleted and `false` otherwise, the reason is written as warning to the log.
+Only the set is deleted, the member devices stay untouched.
+The `light-set` Thing is not removed and needs to be deleted separately.
+
+Example for a rule with the DSL scripting language:
+
+```java
+val actions = getActions("dirigera", "dirigera:gateway:myhub")
+val lightSets = actions.getLightSets()
+val deleted = actions.deleteLightSet("dirigera:light-set:myhub:cff0e225-eb44-452d-bdae-774811f814c8")
+```
+
+### Changing a Light Set
+
+The following actions of the gateway Thing change an existing light set.
+The set is addressed by its id or by the Thing UID of its `light-set` Thing.
+All actions return `true` if the change was done and `false` otherwise, the reason is written as warning to the log.
+Nothing is sent to the hub if an argument is invalid.
+After a successful change the model is refreshed, so that the `light-set` Thing follows the new name and the new members.
+
+`updateLightSet(lightSet, name, icon)` changes the name and the icon of the set.
+`name` and `icon` are optional, but at least one must be given. A value which is not given (`null` or empty) stays as it is.
+The icon must be one of the supported icons listed at [Creating a Light Set](#creating-a-light-set).
+
+`addDevicesToLightSet(lightSet, devices)` adds lights and outlets to the set.
+`devices` are Thing UIDs of this gateway or hub device ids of lights and outlets and must not be empty. A device which is already a member stays a member.
+
+`removeDevicesFromLightSet(lightSet, devices)` removes devices from the set.
+`devices` are Thing UIDs of this gateway or hub device ids of current members and must not be empty. A device which is not a member of the set is rejected.
+A set keeps at least one member. If all members would be removed, the request is rejected, use `deleteLightSet` to delete the set.
+
+The hub takes the complete list of members and has no request to add or remove a single member.
+The actions therefore read the current members from the hub and send the complete resulting list.
+If another client changes the same set between reading and sending, this change is overwritten.
+
+Example for a rule with the DSL scripting language:
+
+```java
+val actions = getActions("dirigera", "dirigera:gateway:myhub")
+actions.updateLightSet("dirigera:light-set:myhub:cff0e225-eb44-452d-bdae-774811f814c8", "Sleeping Room", "lighting_floor_lamp")
+actions.addDevicesToLightSet("dirigera:light-set:myhub:cff0e225-eb44-452d-bdae-774811f814c8", newArrayList("dirigera:color-light:myhub:lamp2"))
+actions.removeDevicesFromLightSet("dirigera:light-set:myhub:cff0e225-eb44-452d-bdae-774811f814c8", newArrayList("dirigera:color-light:myhub:lamp1"))
+```
+
+## Rooms
+
+Rooms exist on the hub only, the binding has no Thing type for rooms and rooms do not appear in the Inbox.
+The actions for rooms are setup tools in the same way as the actions for light sets, see the note at [Creating a Light Set](#creating-a-light-set): they are not intended for the regular operation of a home, but to organise devices on the hub via the openHAB REST API, the openHAB MCP server or an AI assistant, consistent with the IKEA Home smart app.
+Rooms can be created, changed, listed and deleted and devices can be moved into rooms with actions of the gateway Thing:
+
+| Action | Purpose |
+|--------|---------|
+| `createRoom` | Creates a room, empty or with devices |
+| `moveDevicesToRoom` | Moves devices into an existing room |
+| `updateRoom` | Changes name, icon and color of a room |
+| `getRooms` | Lists the rooms with their devices |
+| `deleteRoom` | Deletes a room |
+
+There is no action to remove a device from a room, because a device belongs to one room and is moved into another one.
+
+### Creating a Room
+
+The action `createRoom` creates a room on the hub, either empty or with devices.
+
+| Parameter | Type         | Description                                                                              |
+|-----------|--------------|------------------------------------------------------------------------------------------|
+| `name`    | String       | Name of the room, must not be blank                                                      |
+| `icon`    | String       | Optional icon of the room, `rooms_sofa` is used if `null` or empty                       |
+| `color`   | String       | Optional color of the room, `ikea_orange_no_11` (orange) is used if `null` or empty      |
+| `devices` | List<String> | Optional devices to move into the room, either Thing UIDs of this gateway or hub device ids |
+
+The action returns the id of the created room.
+It returns `null` and writes a warning to the log if the room cannot be created, for example for an unsupported icon or color or an unknown device.
+All arguments are checked before the first request is sent to the hub.
+
+Devices:
+
+- A device is given either as Thing UID of this gateway (contains a colon) or as device id of the hub. A device id must exist on the hub.
+- The same device given several times is moved once.
+- A physical device can appear on the hub with several entries which share the id up to the last `_` suffix, for example `abc_1` and `abc_2` for a motion sensor with a light sensor.
+  The IKEA Home smart app shows the device in the room of its main entry.
+  The action therefore moves all entries of the device, even if only one entry is given.
+- A device belongs to one room only. Moving a device into the new room removes it from its previous room. The previous room is written to the log as `INFO`.
+  If the new room is deleted, the devices of the room have no room. They can be assigned again with `moveDevicesToRoom` or in the IKEA Home smart app.
+- The hub answered the request to move an offline device with status `404`. In this case no devices are moved and the room is deleted again. The warning in the log contains the status and the answer of the hub.
+
+Failures:
+
+- If moving the devices fails, the room created in the same call is deleted again, so no half-created room remains on the hub.
+  If the connection to the hub was closed, the request is sent a second time. If deleting the room fails too, a warning asks to remove the empty room in the IKEA Home smart app.
+- Requests to move devices or to delete a room are sent a second time if the connection to the hub was closed before an answer arrived. A request to create a room is never repeated, because this could produce a duplicate room.
+- An answer of the hub with an error status is not repeated.
+
+Supported icons:
+`rooms_arm_chair`, `rooms_bathtub`, `rooms_bed`, `rooms_bedside_table`, `rooms_bike`, `rooms_book_case`, `rooms_box`, `rooms_bunk_bed`, `rooms_car`, `rooms_chair`, `rooms_clapper`, `rooms_coat_hanger`, `rooms_coat_rack`, `rooms_cutlery`, `rooms_desk`, `rooms_display`, `rooms_dog`, `rooms_door`, `rooms_drill`, `rooms_fence`, `rooms_fireplace`, `rooms_fish`, `rooms_flower`, `rooms_game_pad`, `rooms_heart`, `rooms_home`, `rooms_hot_drink`, `rooms_iron`, `rooms_kitchen`, `rooms_ladle`, `rooms_mobile`, `rooms_motor_bike`, `rooms_mower`, `rooms_office_chair`, `rooms_paper_towels`, `rooms_parasol`, `rooms_play_area`, `rooms_pool_ladder`, `rooms_pot_plant`, `rooms_pot_with_lid`, `rooms_pram`, `rooms_printer`, `rooms_restroom_baby_care`, `rooms_sewing_machine`, `rooms_shower`, `rooms_sideboard`, `rooms_sink`, `rooms_sofa`, `rooms_stairway`, `rooms_strainer`, `rooms_t_shirt`, `rooms_teddy`, `rooms_toothbrush`, `rooms_wardrobe`, `rooms_washing_machine`, `rooms_weights`, `rooms_wrench`
+
+Supported colors:
+`ikea_green_no_65`, `ikea_yellow_no_24`, `ncs_s_1020_r10b`, `ikea_red_no_39`, `ikea_blue_no_58`, `ikea_lilac_no_3`, `ikea_orange_no_11`, `ikea_yellow_no_31`, `pantone_16_0230_tcx`, `ikea_brown_no_41`, `ikea_yellow_no_28`, `ikea_blue_no_63`, `ikea_pink_no_4`, `ikea_beige_1`, `pantone_16_0940_tcx`, `pantone_15_0522_tcx`, `ikea_green_no_66`, `ikea_blue_no_60`, `ikea_pink_no_6`, `ncs_s_4010_g10y`, `ikea_turquoise_5`, `ikea_beige_no_3`, `ikea_pink_no_8`, `ikea_yellow_no_27`, `ikea_beige_no_4`, `ikea_blue_no_52`, `ikea_white_no_20`, `ikea_yellow_no_30`, `ikea_green_no_63`
+
+### Moving Devices into an Existing Room
+
+The action `moveDevicesToRoom` moves devices into a room which already exists on the hub.
+
+| Parameter | Type         | Description                                                                        |
+|-----------|--------------|------------------------------------------------------------------------------------|
+| `room`    | String       | Id or name of the room, a name must be unique                                      |
+| `devices` | List<String> | Devices to move, either Thing UIDs of this gateway or hub device ids, must not be empty |
+
+The action returns `true` if the devices were moved and `false` otherwise, the reason is written as warning to the log.
+Nothing is sent to the hub for an unknown room, a name used by more than one room, no devices or an unknown device.
+The devices are handled like in `createRoom`: all hub entries of a device are moved, the same device given several times is moved once, and a device leaves its previous room, which is written to the log as `INFO`.
+The hub answered the request to move an offline device with status `404`, in this case the action returns `false` and the warning contains the status and the answer of the hub.
+The request is sent a second time if the connection to the hub was closed before an answer arrived.
+
+Example for a rule with the DSL scripting language:
+
+```java
+val actions = getActions("dirigera", "dirigera:gateway:myhub")
+val moved = actions.moveDevicesToRoom("Loft", newArrayList("dirigera:occupancy-sensor:myhub:sensor1_1"))
+```
+
+### Changing a Room
+
+The action `updateRoom(room, name, icon, color)` changes name, icon and color of a room.
+The room is addressed by its id or by its name, a name must be unique.
+`name`, `icon` and `color` are optional, but at least one must be given. A value which is not given (`null` or empty) stays as it is.
+Icon and color must be one of the supported values listed at [Creating a Room](#creating-a-room).
+The action returns `true` if the room was changed and `false` otherwise, the reason is written as warning to the log. Nothing is sent to the hub if an argument is invalid.
+The devices of the room are not changed. A device is removed from a room by moving it into another room with `moveDevicesToRoom`.
+
+Example for a rule with the DSL scripting language:
+
+```java
+val actions = getActions("dirigera", "dirigera:gateway:myhub")
+actions.updateRoom("Study", "Office", "rooms_desk", null)
+```
+
+### Listing and Deleting Rooms
+
+The action `getRooms` returns all rooms of the hub as JSON array in a String.
+Each element contains `id`, `name`, `icon`, `color` and `devices` with the device ids in the room.
+The action returns `null` and writes a warning to the log if the hub cannot be read.
+
+The action `deleteRoom` deletes a room from the hub.
+The room is addressed by its id or by its name, a name must be unique.
+The action returns `true` if the room was deleted and `false` otherwise, the reason is written as warning to the log.
+A name which is used by more than one room, an unknown room and a rejection by the hub result in `false`, nothing is deleted in the first two cases.
+The delete request is sent a second time if the connection to the hub was closed before an answer arrived.
+Devices are not deleted. In the tests with a hub, the devices of a deleted room had no room afterwards. They can be assigned again with `moveDevicesToRoom` or in the IKEA Home smart app.
+
+Example for a rule with the DSL scripting language:
+
+```java
+val actions = getActions("dirigera", "dirigera:gateway:myhub")
+// empty room with default icon and color
+val roomId = actions.createRoom("Study", null, null, null)
+// room with icon, color and devices
+actions.createRoom("Garage", "rooms_car", "ikea_blue_no_58", newArrayList("dirigera:color-light:myhub:lamp1"))
+val rooms = actions.getRooms()
+val deleted = actions.deleteRoom("Study")
 ```
 
 ## Power Plugs
