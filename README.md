@@ -10,7 +10,7 @@ Each folder contains one add-on with its documentation (`README.md`) and the bui
 | [boschthermotechnology](boschthermotechnology) | Integrates Bosch and Buderus heating systems via the Bosch Thermotechnology PointT cloud. | OH 5.3 |
 | [brightsky](brightsky) | Provides weather data from the German Weather Service (DWD) via the Bright Sky API. | OH 5.2 |
 | [dirigera](dirigera) | Integrates the IKEA DIRIGERA gateway and its connected smart home devices, including Matter devices. | OH 5.2, OH 5.3 |
-| [e3dc-rscp](e3dc-rscp) | Integrates E3/DC home power plants, including battery and wallboxes, via the RSCP interface. | OH 5.3 |
+| [e3dc-rscp](e3dc-rscp) | Integrates E3/DC home power plants, including battery and wallboxes, via the RSCP interface. | OH 5.2, OH 5.3 |
 | [energycharts](energycharts) | Provides energy prices and renewable energy measurements from Fraunhofer ISE Energy-Charts. | OH 5.2 |
 | [energychartsinfo](energychartsinfo) | Provides energy information and pricing from Fraunhofer ISE Energy-Charts together with a price forecast. | OH 5.2 |
 | [energyforecast](energyforecast) | Provides an AI price forecast beyond EPEX day-ahead pricing via the Energy Forecast Service. | OH 5.2 |
